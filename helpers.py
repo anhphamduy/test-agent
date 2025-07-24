@@ -469,7 +469,7 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
                 "You are a senior QA architect and JSON-Schema expert. Decide whether the item-level "
                 "schema must change and which requirements need new test cases. Respond ONLY by calling "
                 "the detect_schema_and_affected function. The `schema` argument must be a JSON string "
-                "representing the full item-level schema, or '{}' if unchanged."
+                "representing the full item-level schema, or '{}' if unchanged. Additionally, every property in the schema must have type 'string'."
             ),
         },
         {"role": "system", "content": f"Current schema: {json.dumps(current_schema)}"},
@@ -572,30 +572,4 @@ def handle_test_case_chat(user_msg: str):
     # specific requirements and perform it so that new test cases conform to `current_schema`.
     # ---------------------------------------------------
 
-    # The `affected_ids` list was returned by the schema inference step above
-    if affected_ids:
-        requirements: List[Dict] = st.session_state.get("requirements", [])
-        affected_requirements = [r for r in requirements if r["id"] in affected_ids]
-        if affected_requirements:
-            new_cases = generate_test_cases(affected_requirements, current_schema)
-
-            # Replace cases for these requirements in the global list
-            test_cases = [
-                c for c in test_cases if c.get("requirement_id") not in affected_ids
-            ]
-            test_cases.extend(new_cases)
-
-            st.session_state.test_cases = test_cases
-
-            st.session_state.test_case_chat_history.append(
-                {
-                    "role": "assistant",
-                    "content": (
-                        "Regenerated test cases for requirements "
-                        + ", ".join(map(str, affected_ids))
-                        + "."
-                    ),
-                }
-            )
-            # Finished regeneration; skip further LLM processing
-            return
+    # The `affected_ids`

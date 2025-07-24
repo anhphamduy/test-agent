@@ -144,7 +144,8 @@ def handle_chat(user_msg: str):
 # ---------------------------------------------------------------------------
 
 
-def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict) -> List[Dict]:
+# passing the user's current chat message for additional context
+def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, user_msg: str = "") -> List[Dict]:
     """Internal helper to call OpenAI and generate test cases for a single requirement."""
 
     client = get_openai_client()
@@ -190,6 +191,16 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict) -
         },
     ]
 
+    # Inject the latest user query as extra context for the LLM if provided
+    if user_msg:
+        messages.insert(
+            1,
+            {
+                "role": "system",
+                "content": f"Additional context from user's last request: {user_msg}",
+            },
+        )
+
     response = client.chat.completions.create(
         model=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-35-turbo"),
         messages=messages,
@@ -218,7 +229,8 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict) -
     return cases
 
 
-def generate_test_cases(requirements: List[Dict], item_schema: Dict) -> List[Dict]:
+# Accept optional user message to propagate down to each test-case generation call
+def generate_test_cases(requirements: List[Dict], item_schema: Dict, user_msg: str = "") -> List[Dict]:
     """Generate test cases for each requirement using parallel OpenAI calls."""
 
     if not requirements:
@@ -228,7 +240,7 @@ def generate_test_cases(requirements: List[Dict], item_schema: Dict) -> List[Dic
 
     with ThreadPoolExecutor(max_workers=min(20, len(requirements))) as executor:
         future_to_req = {
-            executor.submit(_generate_test_cases_for_requirement, r, item_schema): r
+            executor.submit(_generate_test_cases_for_requirement, r, item_schema, user_msg): r
             for r in requirements
         }
 

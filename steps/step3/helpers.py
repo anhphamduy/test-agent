@@ -64,7 +64,7 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
                 "You are a senior QA architect and JSON-Schema expert. Decide whether the item-level "
                 "schema must change and which requirements need new test cases. Respond ONLY by calling "
                 "the detect_schema_and_affected function. The `schema` argument must be a JSON string "
-                "representing the full item-level schema, or '{}' if unchanged."
+                "representing the full item-level schema, or '{}' if unchanged. Additionally, every property in the schema must have type 'string'."
             ),
         },
         {"role": "system", "content": f"Current schema: {json.dumps(current_schema)}"},
@@ -174,7 +174,8 @@ def handle_test_case_chat(user_msg: str):
         requirements: List[Dict] = st.session_state.get("requirements", [])
         affected_requirements = [r for r in requirements if r["id"] in affected_ids]
         if affected_requirements:
-            new_cases = generate_test_cases(affected_requirements, current_schema)
+            # Pass the current user query so the test-case generation has full context
+            new_cases = generate_test_cases(affected_requirements, current_schema, user_msg)
 
             # Replace cases for these requirements in the global list
             test_cases = [
