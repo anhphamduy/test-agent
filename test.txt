@@ -1,0 +1,214 @@
+## 🔧 Functional Requirements
+
+### 🏥 Core Healthcare Features
+
+1. FR-001: The system shall allow authorized users to create, read, update, and delete patient profiles.
+2. FR-002: The system shall support uploading and viewing of medical documents in PDF, DICOM, and image formats.
+3. FR-003: The system shall allow doctors to write, edit, and digitally sign prescriptions.
+4. FR-004: The system shall generate alerts for patient allergies and drug interactions based on entered medication.
+5. FR-005: The system shall allow integration with national health ID for auto-filling demographics.
+6. FR-006: The system shall support multiple medical coding standards (ICD-10, CPT).
+7. FR-007: The system shall automatically update patient status to "discharged" upon final report upload.
+
+### 📱 Mobile Access
+
+8. FR-008: Patients shall be able to log in via OTP sent to their registered mobile number.
+9. FR-009: Mobile app shall allow patients to view appointment history and upcoming visits.
+10. FR-010: Push notifications shall remind patients of upcoming appointments and test results.
+11. FR-011: Mobile app shall provide dark mode support.
+12. FR-012: App shall support offline mode for doctors, syncing once online.
+
+### 📊 Analytics & Dashboard
+
+13. FR-013: Admins shall access usage metrics by department, doctor, or service line.
+14. FR-014: System shall support creation of custom reports via drag-and-drop UI.
+15. FR-015: System shall forecast patient inflow based on historical data.
+16. FR-016: System shall support exporting reports in CSV, XLSX, and PDF.
+
+### 💳 Billing & Payment
+
+17. FR-017: System shall auto-generate invoices after every outpatient visit.
+18. FR-018: Patients shall be able to pay via credit card, bank transfer, or insurance.
+19. FR-019: System shall integrate with Stripe and local payment gateways.
+20. FR-020: Discounts and insurance coverage shall be auto-applied based on patient eligibility.
+
+### 🧪 Laboratory Integration
+
+21. FR-021: System shall allow pathologists to upload test results linked to patient record.
+22. FR-022: System shall support HL7/FHIR protocols for lab integration.
+23. FR-023: Doctors shall be notified when lab results become available.
+24. FR-024: Test result anomalies shall trigger alerts to assigned doctors.
+
+### 👥 User Roles & Permissions
+
+25. FR-025: System shall support role-based access control (RBAC) with granular permissions.
+26. FR-026: System shall log all permission changes with timestamp and user ID.
+27. FR-027: Users shall only see data relevant to their role (e.g. nurse, lab tech, admin).
+
+### 🌐 Interoperability
+
+28. FR-028: System shall expose REST and GraphQL APIs for third-party integration.
+29. FR-029: System shall support data import/export in HL7 and FHIR formats.
+30. FR-030: Third-party systems shall authenticate via OAuth2.0.
+
+---
+
+## 🛡️ Non-Functional Requirements
+
+### 🔒 Security
+
+31. NFR-001: System shall enforce two-factor authentication for all users.
+32. NFR-002: All sensitive data shall be encrypted at rest using AES-256.
+33. NFR-003: System shall encrypt data in transit via TLS 1.3.
+34. NFR-004: Admin actions shall be audited and visible in the system log.
+35. NFR-005: All passwords shall be hashed using bcrypt with configurable salt.
+36. NFR-006: System shall block accounts after 5 failed login attempts.
+
+### ⚙️ Performance & Scalability
+
+37. NFR-007: System shall support 10,000 concurrent users with <1s response time.
+38. NFR-008: All API endpoints shall respond within 300ms under 95th percentile load.
+39. NFR-009: System shall horizontally scale across Kubernetes nodes.
+40. NFR-010: Mobile API shall support 99.95% uptime SLA.
+
+### 📶 Availability & Disaster Recovery
+
+41. NFR-011: System shall be available 24/7 with no more than 4 hours downtime/year.
+42. NFR-012: System shall support auto-failover in case of region outage.
+43. NFR-013: All backups shall be taken daily and stored in a separate region.
+44. NFR-014: Disaster recovery shall be tested quarterly.
+
+### 🔁 Maintainability
+
+45. NFR-015: System shall follow clean architecture and layered design.
+46. NFR-016: Codebase shall maintain minimum 80% unit test coverage.
+47. NFR-017: Deployment pipeline shall support rolling updates with zero downtime.
+48. NFR-018: Logs shall be centralized and accessible via Kibana.
+
+### 🌎 Localization & Accessibility
+
+49. NFR-019: UI shall support English, Vietnamese, and French languages.
+50. NFR-020: System shall meet WCAG 2.1 AA accessibility guidelines.
+
+---
+
+## 🧩 Additional System Modules
+
+### 🗓️ Scheduling & Appointments
+
+51. FR-031: Patients shall be able to book/reschedule appointments via app or website.
+52. FR-032: Doctors shall have configurable availability slots.
+53. FR-033: No-show appointments shall be auto-flagged for follow-up.
+54. FR-034: System shall send SMS reminders 24 hours before visit.
+
+### 👨‍⚕️ Doctor Portal
+
+55. FR-035: Doctors shall have access to patient history before appointments.
+56. FR-036: Doctors shall be able to write SOAP notes with template suggestions.
+57. FR-037: Doctors shall be able to refer patients to specialists within the network.
+
+### 📋 Admin Console
+
+58. FR-038: Admins shall manage user roles, system config, and billing settings.
+59. FR-039: Admin console shall show real-time system health dashboard.
+60. FR-040: Admins shall export raw audit logs for compliance.
+
+---
+
+## 🔁 Data Management
+
+### 🔎 Search & Filters
+
+61. FR-041: Users shall search patients by name, ID, phone, or email.
+62. FR-042: All lists shall support filtering and column sorting.
+63. FR-043: Search results shall show relevant metadata preview.
+
+### 📦 Data Archiving
+
+64. FR-044: Inactive records older than 3 years shall be archived.
+65. FR-045: Archived records shall be retrievable by authorized admins.
+
+### 📤 Data Export
+
+66. FR-046: System shall support patient data export in JSON and PDF format.
+67. FR-047: Export operations shall be restricted to authorized users only.
+
+---
+
+## 🧠 AI & Automation (Optional)
+
+68. FR-048: AI module shall provide disease risk prediction based on lab and vitals.
+69. FR-049: NLP engine shall summarize SOAP notes into key points.
+70. FR-050: Chatbot shall answer common patient queries about appointments and labs.
+71. FR-051: Intelligent form auto-fill using scanned document parsing.
+
+---
+
+## 📡 Notifications & Messaging
+
+72. FR-052: System shall allow internal messaging between doctors and staff.
+73. FR-053: Patients shall receive email confirmation for each action taken.
+74. FR-054: System shall support notification rules by event type (e.g. lab result ready).
+75. FR-055: System shall integrate with Firebase Cloud Messaging for push alerts.
+
+---
+
+## 🧪 QA & Testing Requirements
+
+76. NFR-021: Unit, integration, and E2E test coverage shall be >85%.
+77. NFR-022: UI tests shall be automated with Cypress.
+78. NFR-023: Load testing shall be done with 1000 concurrent users pre-release.
+79. NFR-024: Regression suite shall be run on every deployment.
+80. NFR-025: API tests shall be versioned and CI-integrated.
+
+---
+
+## ⚖️ Compliance & Audit
+
+81. NFR-026: System shall be compliant with HIPAA and ISO 27001.
+82. NFR-027: Every access to patient data shall be logged with timestamp and purpose.
+83. NFR-028: Audit reports shall be downloadable monthly.
+84. NFR-029: Users must acknowledge data access policy before using system.
+
+---
+
+## 🧪 Feature Flags & Environments
+
+85. FR-056: System shall support feature flagging per environment.
+86. FR-057: Beta features shall only be visible to whitelisted users.
+
+---
+
+## 🚀 DevOps & Deployment
+
+87. NFR-030: CI/CD pipeline shall build, lint, test, and deploy to staging & prod.
+88. NFR-031: Infrastructure shall be defined as code via Terraform.
+89. NFR-032: Deployment shall support blue-green strategy.
+
+---
+
+## 🧰 Developer Experience
+
+90. NFR-033: API documentation shall be auto-generated via Swagger.
+91. NFR-034: Frontend shall use TypeScript and follow atomic design pattern.
+92. NFR-035: Backend errors shall include meaningful error codes/messages.
+93. NFR-036: Logging shall use structured JSON for compatibility.
+
+---
+
+## 🗂️ Data Governance
+
+94. NFR-037: Patient data shall be stored in secure S3 buckets with lifecycle rules.
+95. NFR-038: System shall support soft delete for all user and record entities.
+96. NFR-039: Records deleted by users shall be recoverable within 30 days.
+
+---
+
+## 🧭 Future-proofing & Extensibility
+
+97. NFR-040: System shall be designed with microservice architecture.
+98. NFR-041: All third-party dependencies shall be scanned weekly for vulnerabilities.
+99. NFR-042: Major modules shall have open APIs for external plugins.
+100. NFR-043: New features shall be pluggable without codebase changes in core logic.
+
+---
