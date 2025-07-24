@@ -156,7 +156,7 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, u
             "function": {
                 "name": "generate_test_cases",
                 "description": (
-                    "Return 3-5 manual test cases for the given requirement, strictly following the provided JSON schema."
+                    "Return manual test cases for the given requirement, strictly following the provided JSON schema."
                 ),
                 "parameters": {
                     "type": "object",
@@ -184,7 +184,7 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, u
         {
             "role": "user",
             "content": (
-                "Generate 3-5 test cases for the requirement below and return them **only** via the "
+                "Generate test cases for the requirement below and return them **only** via the "
                 "generate_test_cases function.\n\n"
                 + f"Requirement: {requirement['name']}"
             ),
@@ -196,8 +196,8 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, u
         messages.insert(
             1,
             {
-                "role": "system",
-                "content": f"Additional context from user's last request: {user_msg}",
+                "role": "user",
+                "content": user_msg,
             },
         )
 

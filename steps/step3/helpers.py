@@ -13,7 +13,7 @@ from ..step2.helpers import generate_test_cases
 # ---------------------------------------------------------------------------
 
 
-def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
+def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
     """Determine schema changes and affected requirements via OpenAI function calling."""
 
     client = get_openai_client()
@@ -39,18 +39,23 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
                         },
                         "schema": {
                             "type": "string",
-                            "description": "JSON string of the new item-level schema. Use '{}' if unchanged.",
+                            "description": "JSON string of the new item-level schema, include any instructions in the field description. Use '{}' if unchanged.",
                         },
                         "affected_requirement_ids": {
                             "type": "array",
                             "items": {"type": "integer"},
                             "description": "Requirement IDs whose test cases must be regenerated.",
                         },
+                        "instruction": {
+                            "type": "string",
+                            "description": "Concise instruction that should be forwarded to the test-case generation step instead of the full chat history.",
+                        },
                     },
                     "required": [
                         "schema",
                         "affected_requirement_ids",
                         "reason",
+                        "instruction",
                     ],
                 },
             },
@@ -63,8 +68,10 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
             "content": (
                 "You are a senior QA architect and JSON-Schema expert. Decide whether the item-level "
                 "schema must change and which requirements need new test cases. Respond ONLY by calling "
-                "the detect_schema_and_affected function. The `schema` argument must be a JSON string "
-                "representing the full item-level schema, or '{}' if unchanged. Additionally, every property in the schema must have type 'string'."
+                "the detect_schema_and_affected function **ONLY when** the user is requesting changes that affect the test-case schema or require regenerating test cases. "
+                "If the user's message is purely informational (Q&A) and no adjustments are needed, respond normally **without** calling the function. "
+                "When you do call the function, it **must** include an `instruction` field that contains a concise directive for how to generate the test cases (e.g. 'Add edge cases'). "
+                "The `schema` argument must be a JSON string representing the full item-level schema, or '{}' if unchanged. Additionally, every property in the schema must have type 'string'."
             ),
         },
         {"role": "system", "content": f"Current schema: {json.dumps(current_schema)}"},
@@ -81,21 +88,20 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
             model=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-35-turbo"),
             messages=messages,
             tools=tools,
-            tool_choice={
-                "type": "function",
-                "function": {"name": "detect_schema_and_affected"},
-            },
+            tool_choice="auto",
             temperature=0.0,
         )
-
+        print(resp)
         assistant_msg = resp.choices[0].message
         if not assistant_msg.tool_calls:
-            return {}, []
+            # Pure chat response; return its content so caller can display it
+            return {}, [], "", assistant_msg.content or ""
 
         first_call = assistant_msg.tool_calls[0]
         try:
             args = json.loads(first_call.function.arguments)
             schema_str = args.get("schema", "{}")
+            print(args)
             try:
                 schema_obj = (
                     json.loads(schema_str) if isinstance(schema_str, str) else {}
@@ -103,6 +109,7 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
             except json.JSONDecodeError:
                 schema_obj = {}
             affected_ids = args.get("affected_requirement_ids", [])
+            instruction = args.get("instruction", "")
 
             if not isinstance(schema_obj, dict):
                 schema_obj = {}
@@ -115,11 +122,11 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
                 if isinstance(i, (int, float, str)) and str(i).isdigit()
             ]
 
-            return schema_obj, affected_ids
+            return schema_obj, affected_ids, instruction, ""
         except Exception:
-            return {}, []
+            return {}, [], "", ""
     except Exception:
-        return {}, []
+        return {}, [], "", ""
 
 
 # ---------------------------------------------------------------------------
@@ -164,16 +171,18 @@ def handle_test_case_chat(latest_user_msg: str):
     client = get_openai_client()
 
     # -----------------------------------------------------------
-    # Build an aggregated user context string containing past user
-    # messages followed by the latest message. This will be fed into
-    # the LLM calls so that `user_msg` essentially includes history.
+    # Build an aggregated conversation string containing BOTH past
+    # user *and* assistant messages in chronological order followed
+    # by the latest user message. This richer context helps the LLM
+    # understand the full dialogue, not just user utterances.
     # -----------------------------------------------------------
-    past_user_msgs = [
-        m.get("content", "")
-        for m in st.session_state.test_case_chat_history
-        if m.get("role") == "user"
+    conversation_lines = [
+        f"{msg.get('role', '').capitalize()}: {msg.get('content', '')}"
+        for msg in st.session_state.test_case_chat_history
     ]
-    aggregated_user_msg = "\n".join(past_user_msgs + [latest_user_msg])
+    # Append the current user message as the last line
+    conversation_lines.append(f"User: {latest_user_msg}")
+    aggregated_user_msg = "\n".join(conversation_lines)
 
     test_cases = st.session_state.test_cases
 
@@ -183,10 +192,17 @@ def handle_test_case_chat(latest_user_msg: str):
     current_schema: Dict = st.session_state.get(
         "test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA
     )
-    inferred_schema, affected_ids = infer_test_case_schema(aggregated_user_msg)
+    inferred_schema, affected_ids, instruction, assistant_reply = infer_test_case_schema(aggregated_user_msg)
     if inferred_schema:
         current_schema = inferred_schema
         st.session_state.test_case_schema = current_schema
+
+    # If the model provided a normal conversational reply (no tool call)
+    # we want it to appear in the chat so the user sees the answer.
+    if assistant_reply.strip():
+        st.session_state.test_case_chat_history.append(
+            {"role": "assistant", "content": assistant_reply}
+        )
 
     # --------------------------------------------------------------------
     # 2) Regenerate test cases for affected requirements if needed
@@ -196,7 +212,7 @@ def handle_test_case_chat(latest_user_msg: str):
         affected_requirements = [r for r in requirements if r["id"] in affected_ids]
         if affected_requirements:
             new_cases = generate_test_cases(
-                affected_requirements, current_schema, aggregated_user_msg
+                affected_requirements, current_schema, instruction
             )
 
             # Replace cases for these requirements in the global list
