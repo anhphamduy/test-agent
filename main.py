@@ -222,10 +222,12 @@ def main():
     st.title("📄 Requirement Extractor & Editor")
 
     # NEW: delegate UI rendering to modular step files and return early to skip legacy code
-    from helpers import init_session_state
-    import step1
-    import step2
-    import step3
+    from helpers import init_session_state  # session-state utilities
+
+    # Import the refactored step modules located under the 'steps' package
+    from steps.step1 import view as step1
+    from steps.step2 import view as step2
+    from steps.step3 import view as step3
 
     init_session_state()
 

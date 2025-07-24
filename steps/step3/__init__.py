@@ -1,0 +1,1 @@
+from .view import render  # noqa: F401 

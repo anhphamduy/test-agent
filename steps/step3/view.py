@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from helpers import handle_test_case_chat
+from .helpers import handle_test_case_chat
 
 
 def render():
@@ -10,7 +10,9 @@ def render():
     st.header("Step 3: Generated Test Cases")
 
     if not st.session_state.get("test_cases"):
-        st.info("No test cases have been generated yet. Please go back to Step 2 and generate them.")
+        st.info(
+            "No test cases have been generated yet. Please go back to Step 2 and generate them."
+        )
         return
 
     # Create two columns like in Step 2: table on left, chat on right
@@ -27,7 +29,7 @@ def render():
 
         df = pd.DataFrame(st.session_state.test_cases)
 
-        # Add any missing columns (initially with empty strings) so users can see new schema fields immediately
+        # Add any missing columns so users can see new schema fields immediately
         for col in schema_props.keys():
             if col not in df.columns:
                 df[col] = ""

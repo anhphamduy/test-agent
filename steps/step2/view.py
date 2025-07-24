@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from helpers import handle_chat
+from .helpers import handle_chat, generate_test_cases
 
 
 def render():
@@ -51,10 +51,10 @@ def render():
     # Divider and action to move to test case generation
     st.divider()
 
-    from helpers import generate_test_cases
-
     if st.button("🚀 Generate Test Cases for All Requirements", type="primary"):
-        with st.spinner("Generating test cases in parallel. This may take a while for large requirement sets..."):
+        with st.spinner(
+            "Generating test cases in parallel. This may take a while for large requirement sets..."
+        ):
             st.session_state.test_cases = generate_test_cases(
                 st.session_state.requirements,
                 st.session_state.get("test_case_schema", {}),
