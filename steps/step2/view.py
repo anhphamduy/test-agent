@@ -14,7 +14,12 @@ def render():
     # Left column: requirements table
     with col_left:
         st.subheader("📋 Current Requirements")
-        df = pd.DataFrame(st.session_state.requirements)
+        # Sort by requirement ID for easier readability
+        df = (
+            pd.DataFrame(st.session_state.requirements)
+            .sort_values(by="id", ascending=True)
+            .reset_index(drop=True)
+        )
         st.dataframe(df, use_container_width=True, hide_index=True, height=600)
 
     # Right column: chat interface

@@ -27,7 +27,11 @@ def render():
             .get("properties", {})
         )
 
+        # Build DataFrame and sort by requirement ID if present
         df = pd.DataFrame(st.session_state.test_cases)
+
+        if "requirement_id" in df.columns:
+            df = df.sort_values(by="requirement_id", ascending=True).reset_index(drop=True)
 
         # Add any missing columns so users can see new schema fields immediately
         for col in schema_props.keys():

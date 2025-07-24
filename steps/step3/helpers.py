@@ -153,36 +153,57 @@ def apply_test_case_tool_call(test_cases: List[Dict], call) -> Tuple[List[Dict],
     return test_cases, ""
 
 
-def handle_test_case_chat(user_msg: str):
-    """Process a chat message related to test cases, allowing the model to modify them via function calls."""
+def handle_test_case_chat(latest_user_msg: str):
+    """Process a chat message related to test cases. This now:
+
+    1. Aggregates previous user messages so the LLM receives full context.
+    2. Forces the assistant to respond via the `update_test_cases` function when modifications are needed.
+    3. Still supports schema inference & selective regeneration as before.
+    """
 
     client = get_openai_client()
 
+    # -----------------------------------------------------------
+    # Build an aggregated user context string containing past user
+    # messages followed by the latest message. This will be fed into
+    # the LLM calls so that `user_msg` essentially includes history.
+    # -----------------------------------------------------------
+    past_user_msgs = [
+        m.get("content", "")
+        for m in st.session_state.test_case_chat_history
+        if m.get("role") == "user"
+    ]
+    aggregated_user_msg = "\n".join(past_user_msgs + [latest_user_msg])
+
     test_cases = st.session_state.test_cases
 
-    # 1) Schema inference
+    # --------------------------------------------------------------------
+    # 1) Schema inference (may trigger regeneration of some test cases)
+    # --------------------------------------------------------------------
     current_schema: Dict = st.session_state.get(
         "test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA
     )
-    inferred_schema, affected_ids = infer_test_case_schema(user_msg)
+    inferred_schema, affected_ids = infer_test_case_schema(aggregated_user_msg)
     if inferred_schema:
         current_schema = inferred_schema
         st.session_state.test_case_schema = current_schema
 
+    # --------------------------------------------------------------------
     # 2) Regenerate test cases for affected requirements if needed
+    # --------------------------------------------------------------------
     if affected_ids:
         requirements: List[Dict] = st.session_state.get("requirements", [])
         affected_requirements = [r for r in requirements if r["id"] in affected_ids]
         if affected_requirements:
-            # Pass the current user query so the test-case generation has full context
-            new_cases = generate_test_cases(affected_requirements, current_schema, user_msg)
+            new_cases = generate_test_cases(
+                affected_requirements, current_schema, aggregated_user_msg
+            )
 
             # Replace cases for these requirements in the global list
             test_cases = [
                 c for c in test_cases if c.get("requirement_id") not in affected_ids
             ]
             test_cases.extend(new_cases)
-
             st.session_state.test_cases = test_cases
 
             st.session_state.test_case_chat_history.append(
