@@ -12,12 +12,15 @@ from ..step2.helpers import generate_test_cases
 # Schema inference helper
 # ---------------------------------------------------------------------------
 
+
 def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
     """Determine schema changes and affected requirements via OpenAI function calling."""
 
     client = get_openai_client()
 
-    current_schema = st.session_state.get("test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA)
+    current_schema = st.session_state.get(
+        "test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA
+    )
     current_test_cases = st.session_state.get("test_cases", [])
     requirements = st.session_state.get("requirements", [])
 
@@ -66,7 +69,10 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
         },
         {"role": "system", "content": f"Current schema: {json.dumps(current_schema)}"},
         {"role": "system", "content": f"Requirements list: {json.dumps(requirements)}"},
-        {"role": "system", "content": f"Existing test cases: {json.dumps(current_test_cases)}"},
+        {
+            "role": "system",
+            "content": f"Existing test cases: {json.dumps(current_test_cases)}",
+        },
         {"role": "user", "content": user_msg},
     ]
 
@@ -91,7 +97,9 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
             args = json.loads(first_call.function.arguments)
             schema_str = args.get("schema", "{}")
             try:
-                schema_obj = json.loads(schema_str) if isinstance(schema_str, str) else {}
+                schema_obj = (
+                    json.loads(schema_str) if isinstance(schema_str, str) else {}
+                )
             except json.JSONDecodeError:
                 schema_obj = {}
             affected_ids = args.get("affected_requirement_ids", [])
@@ -117,6 +125,7 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int]]:
 # ---------------------------------------------------------------------------
 # Test-case chat helpers
 # ---------------------------------------------------------------------------
+
 
 def apply_test_case_tool_call(test_cases: List[Dict], call) -> Tuple[List[Dict], str]:
     """Handle the update_test_cases function call coming from the model."""
@@ -152,7 +161,9 @@ def handle_test_case_chat(user_msg: str):
     test_cases = st.session_state.test_cases
 
     # 1) Schema inference
-    current_schema: Dict = st.session_state.get("test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA)
+    current_schema: Dict = st.session_state.get(
+        "test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA
+    )
     inferred_schema, affected_ids = infer_test_case_schema(user_msg)
     if inferred_schema:
         current_schema = inferred_schema
@@ -183,83 +194,3 @@ def handle_test_case_chat(user_msg: str):
                     ),
                 }
             )
-            return  # Skip further processing when regeneration happened
-
-    # 3) Let the LLM directly edit test cases when no regeneration is requested
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "update_test_cases",
-                "description": "Replace the entire test-case list with a new list provided by the assistant.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "test_cases": {
-                            "type": "array",
-                            "items": current_schema,
-                        },
-                        "summary": {
-                            "type": "string",
-                            "description": "Summary of changes.",
-                        },
-                    },
-                    "required": ["test_cases", "summary"],
-                },
-            },
-        }
-    ]
-
-    cleaned_history = [
-        {**m, "content": m.get("content") or ""}
-        for m in st.session_state.test_case_chat_history
-    ]
-
-    messages = (
-        [
-            {
-                "role": "system",
-                "content": (
-                    "You are a QA assistant helping the user refine test cases. "
-                    "Whenever the user requests a change, respond ONLY by calling the update_test_cases function with "
-                    "the complete new list of test cases AND a brief summary of what changes were made. If no change is needed, respond normally."
-                ),
-            },
-            {
-                "role": "system",
-                "content": f"Current test cases: {json.dumps(test_cases)}",
-            },
-            {
-                "role": "system",
-                "content": f"Current item schema: {json.dumps(current_schema)}",
-            },
-        ]
-        + cleaned_history
-        + [{"role": "user", "content": user_msg}]
-    )
-
-    response = client.chat.completions.create(
-        model=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-35-turbo"),
-        messages=messages,
-        tools=tools,
-        tool_choice="auto",
-    )
-
-    assistant_msg = response.choices[0].message
-    assistant_content = assistant_msg.content or ""
-    if assistant_content.strip():
-        st.session_state.test_case_chat_history.append(
-            {"role": "assistant", "content": assistant_content}
-        )
-
-    if assistant_msg.tool_calls:
-        for call in assistant_msg.tool_calls:
-            test_cases, summary = apply_test_case_tool_call(test_cases, call)
-            if summary:
-                st.session_state.test_case_chat_history.append(
-                    {
-                        "role": "assistant",
-                        "content": f"**Summary of changes:** {summary}",
-                    }
-                )
-        st.session_state.test_cases = test_cases 
