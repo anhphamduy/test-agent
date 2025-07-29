@@ -219,7 +219,7 @@ def handle_chat(user_msg: str):
 # --------------------------
 
 def main():
-    st.title("📄 Requirement Extractor & Editor")
+    # st.title("📄 Requirement Extractor & Editor")
 
     # NEW: delegate UI rendering to modular step files and return early to skip legacy code
     from helpers import init_session_state  # session-state utilities

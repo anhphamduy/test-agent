@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 import streamlit as st
 
@@ -41,6 +41,10 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
                             "type": "string",
                             "description": "JSON string of the new item-level schema, include any instructions in the field description. Use '{}' if unchanged.",
                         },
+                        "sample_test_case": {
+                            "type": "string",
+                            "description": "JSON string of ONE sample test case object that follows the schema. Use '{}' if unchanged.",
+                        },
                         "affected_requirement_ids": {
                             "type": "array",
                             "items": {"type": "integer"},
@@ -54,6 +58,7 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
                     "required": [
                         "schema",
                         "affected_requirement_ids",
+                        "sample_test_case",
                         "reason",
                         "instruction",
                     ],
@@ -101,6 +106,7 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
         try:
             args = json.loads(first_call.function.arguments)
             schema_str = args.get("schema", "{}")
+            sample_str = args.get("sample_test_case", "{}")
             print(args)
             try:
                 schema_obj = (
@@ -108,11 +114,19 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
                 )
             except json.JSONDecodeError:
                 schema_obj = {}
+            try:
+                sample_obj = (
+                    json.loads(sample_str) if isinstance(sample_str, str) else {}
+                )
+            except json.JSONDecodeError:
+                sample_obj = {}
             affected_ids = args.get("affected_requirement_ids", [])
             instruction = args.get("instruction", "")
 
             if not isinstance(schema_obj, dict):
                 schema_obj = {}
+            if not isinstance(sample_obj, dict):
+                sample_obj = {}
             if not isinstance(affected_ids, list):
                 affected_ids = []
 
@@ -121,6 +135,13 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
                 for i in affected_ids
                 if isinstance(i, (int, float, str)) and str(i).isdigit()
             ]
+
+            # Store sample in session for later consistency
+            if sample_obj:
+                st.session_state["test_case_sample"] = sample_obj
+            else:
+                if schema_obj:
+                    st.session_state["test_case_sample"] = _build_generic_sample(schema_obj)
 
             return schema_obj, affected_ids, instruction, ""
         except Exception:
@@ -212,7 +233,10 @@ def handle_test_case_chat(latest_user_msg: str):
         affected_requirements = [r for r in requirements if r["id"] in affected_ids]
         if affected_requirements:
             new_cases = generate_test_cases(
-                affected_requirements, current_schema, instruction
+                affected_requirements,
+                current_schema,
+                instruction,
+                st.session_state.get("test_case_sample"),
             )
 
             # Replace cases for these requirements in the global list
@@ -221,6 +245,11 @@ def handle_test_case_chat(latest_user_msg: str):
             ]
             test_cases.extend(new_cases)
             st.session_state.test_cases = test_cases
+            # Track versions of test cases
+            tc_versions = st.session_state.get("test_case_versions", [])
+            tc_versions.append([c.copy() for c in test_cases])
+            st.session_state["test_case_versions"] = tc_versions
+            st.session_state["tc_version_idx"] = len(tc_versions) - 1
 
             st.session_state.test_case_chat_history.append(
                 {
@@ -232,3 +261,18 @@ def handle_test_case_chat(latest_user_msg: str):
                     ),
                 }
             )
+
+# Utility to build generic sample test case
+
+
+def _build_generic_sample(schema: Dict[str, Any]) -> Dict[str, Any]:
+    props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    sample: Dict[str, Any] = {}
+    for name in props.keys():
+        if name == "requirement_id":
+            sample[name] = 1
+        elif name == "requirement_name":
+            sample[name] = "Sample Requirement"
+        else:
+            sample[name] = "Sample Value"
+    return sample

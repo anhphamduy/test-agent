@@ -9,17 +9,55 @@ def render():
 
     st.header("Step 3: Generated Test Cases")
 
-    if not st.session_state.get("test_cases"):
-        st.info(
-            "No test cases have been generated yet. Please go back to Step 2 and generate them."
-        )
-        return
+    if "test_cases" not in st.session_state:
+        st.session_state.test_cases = []
 
-    # Create two columns like in Step 2: table on left, chat on right
-    col_left, col_right = st.columns(2)
+    # Create two columns like in Step 2 but with wider table column
+    col_left, col_right = st.columns([3, 2])
 
     with col_left:
-        st.subheader("🧪 Test Cases")
+        # (header removed as per UI simplification)
+
+        # Ensure version list exists so navigation shows at least one version
+        if "test_case_versions" not in st.session_state:
+            st.session_state.test_case_versions = [
+                [c.copy() for c in st.session_state.get("test_cases", [])]
+            ]
+            st.session_state.tc_version_idx = 0
+
+        # ------------------------
+        # Version navigation UI for test cases
+        # ------------------------
+        if "test_case_versions" in st.session_state:
+            total_tc_ver = len(st.session_state.test_case_versions)
+            if "tc_version_idx" not in st.session_state:
+                st.session_state.tc_version_idx = total_tc_ver - 1
+
+            tc_idx = st.session_state.tc_version_idx
+
+            nav_prev_tc, nav_label_tc, nav_next_tc = st.columns([1,3,1])
+
+            with nav_prev_tc:
+                if st.button("⬅️", disabled=tc_idx <= 0, use_container_width=True, key="tc_prev"):
+                    st.session_state.tc_version_idx = max(0, tc_idx - 1)
+                    st.session_state.test_cases = st.session_state.test_case_versions[
+                        st.session_state.tc_version_idx
+                    ]
+                    st.rerun()
+
+            with nav_label_tc:
+                st.markdown(
+                    f"<h3 style='text-align:center; padding-top:2px;'>Version {tc_idx + 1} / {total_tc_ver}</h3>",
+                    unsafe_allow_html=True,
+                )
+
+            with nav_next_tc:
+                if st.button("➡️", disabled=tc_idx >= total_tc_ver - 1, use_container_width=True, key="tc_next"):
+                    st.session_state.tc_version_idx = min(total_tc_ver - 1, tc_idx + 1)
+                    st.session_state.test_cases = st.session_state.test_case_versions[
+                        st.session_state.tc_version_idx
+                    ]
+                    st.rerun()
 
         # Ensure the dataframe includes all fields defined in the current test-case schema
         schema_props = (
@@ -41,7 +79,7 @@ def render():
         # Re-order columns to match the schema definition order for consistency
         df = df[list(schema_props.keys())] if schema_props else df
 
-        st.dataframe(df, use_container_width=True, hide_index=True, height=600)
+        st.dataframe(df, use_container_width=True, hide_index=True, height=650)
 
         # CSV download button
         csv = df.to_csv(index=False).encode("utf-8")
@@ -50,23 +88,24 @@ def render():
             data=csv,
             file_name="test_cases.csv",
             mime="text/csv",
+            use_container_width=True,
         )
 
-        # Back button
-        if st.button("↩️ Back to Requirements", key="back_to_step2"):
-            st.session_state.pop("test_cases", None)
-            st.rerun()
-
     with col_right:
-        st.subheader("💬 Chat to Modify Test Cases")
-
-        chat_container = st.container(height=600)
+        chat_container = st.container(height=706)
 
         # Display chat history specific to test cases
         with chat_container:
             for msg in st.session_state.test_case_chat_history:
                 with st.chat_message(msg["role"]):
                     st.markdown(msg["content"])
+
+            # If no previous test-case chat messages, display a friendly welcome/instruction
+            if not st.session_state.test_case_chat_history:
+                with st.chat_message("assistant"):
+                    st.markdown(
+                        "👋 Hello! I can help you refine your test cases. Ask me to add, remove, or modify test cases, and I'll propose updates accordingly."
+                    )
 
         # Chat input
         user_input = st.chat_input("Ask me to add, remove, or modify test cases...")

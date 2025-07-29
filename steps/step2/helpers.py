@@ -68,6 +68,18 @@ def handle_chat(user_msg: str):
                                         "type": "string",
                                         "description": "Short requirement description.",
                                     },
+                                    "first_level_viewpoint": {
+                                        "type": "string",
+                                        "description": "Top-level viewpoint (e.g. user journey step or module).",
+                                    },
+                                    "second_level_viewpoint": {
+                                        "type": "string",
+                                        "description": "Second-level viewpoint grouping.",
+                                    },
+                                    "third_level_viewpoint": {
+                                        "type": "string",
+                                        "description": "Specific category/sub-category or test objective.",
+                                    },
                                 },
                                 "required": ["id", "name"],
                             },
@@ -136,16 +148,44 @@ def handle_chat(user_msg: str):
                         "content": f"**Summary of changes:** {summary}",
                     }
                 )
-        st.session_state.requirements = requirements
+            st.session_state.requirements = requirements
+            # Track versions of requirements
+            req_versions = st.session_state.get("requirements_versions", [])
+            req_versions.append([r.copy() for r in requirements])
+            st.session_state["requirements_versions"] = req_versions
+            st.session_state["req_version_idx"] = len(req_versions) - 1
 
 
 # ---------------------------------------------------------------------------
 # Test-case generation helpers
 # ---------------------------------------------------------------------------
 
+# --------------------------
+# Utility to build a generic sample test case given a schema
+# --------------------------
+
+
+def _build_generic_sample(schema: Dict) -> Dict:
+    """Return a generic sample object matching the provided item-level schema."""
+    props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    sample: Dict = {}
+    for name, definition in props.items():
+        if name == "requirement_id":
+            sample[name] = 1
+        elif name == "requirement_name":
+            sample[name] = "Sample Requirement"
+        else:
+            sample[name] = "Sample Value"
+    return sample
+
 
 # passing the user's current chat message for additional context
-def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, user_msg: str = "") -> List[Dict]:
+def _generate_test_cases_for_requirement(
+    requirement: Dict,
+    item_schema: Dict,
+    user_msg: str = "",
+    sample_case: Dict | None = None,
+) -> List[Dict]:
     """Internal helper to call OpenAI and generate test cases for a single requirement."""
 
     client = get_openai_client()
@@ -172,6 +212,7 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, u
         }
     ]
 
+    # Build system & user messages
     messages = [
         {
             "role": "system",
@@ -190,6 +231,21 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, u
             ),
         },
     ]
+
+    # Provide sample case as additional guidance for formatting consistency
+    if sample_case is None:
+        sample_case = _build_generic_sample(item_schema)
+
+    messages.insert(
+        1,
+        {
+            "role": "system",
+            "content": (
+                "Here is an example test case that strictly follows the schema. Model outputs should be consistent with this format:\n"
+                f"```json\n{json.dumps(sample_case)}\n```"
+            ),
+        },
+    )
 
     # Inject the latest user query as extra context for the LLM if provided
     if user_msg:
@@ -230,7 +286,12 @@ def _generate_test_cases_for_requirement(requirement: Dict, item_schema: Dict, u
 
 
 # Accept optional user message to propagate down to each test-case generation call
-def generate_test_cases(requirements: List[Dict], item_schema: Dict, user_msg: str = "") -> List[Dict]:
+def generate_test_cases(
+    requirements: List[Dict],
+    item_schema: Dict,
+    user_msg: str = "",
+    sample_case: Dict | None = None,
+) -> List[Dict]:
     """Generate test cases for each requirement using parallel OpenAI calls."""
 
     if not requirements:
@@ -240,7 +301,13 @@ def generate_test_cases(requirements: List[Dict], item_schema: Dict, user_msg: s
 
     with ThreadPoolExecutor(max_workers=min(20, len(requirements))) as executor:
         future_to_req = {
-            executor.submit(_generate_test_cases_for_requirement, r, item_schema, user_msg): r
+            executor.submit(
+                _generate_test_cases_for_requirement,
+                r,
+                item_schema,
+                user_msg,
+                sample_case,
+            ): r
             for r in requirements
         }
 
