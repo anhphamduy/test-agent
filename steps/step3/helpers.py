@@ -74,7 +74,7 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
                 "You are a senior QA architect and JSON-Schema expert. Decide whether the item-level "
                 "schema must change and which requirements need new test cases. Respond ONLY by calling "
                 "the detect_schema_and_affected function **ONLY when** the user is requesting changes that affect the test-case schema or require regenerating test cases. "
-                "If the user's message is purely informational (Q&A) and no adjustments are needed, respond normally **without** calling the function. "
+                "If the user's message is purely informational (Q&A) and no adjustments are needed, respond normally **without** calling the function and end your reply with a question asking if the user wants these ideas applied to the test-case table (e.g. 'Would you like me to update the test cases accordingly?'). "
                 "When you do call the function, it **must** include an `instruction` field that contains a concise directive for how to generate the test cases (e.g. 'Add edge cases'). "
                 "The `schema` argument must be a JSON string representing the full item-level schema, or '{}' if unchanged. Additionally, every property in the schema must have type 'string'. "
                 "Important: If the user asks to delete test cases (or a requirement) that does not exist, do NOT call any function. Instead, reply normally with an apology (e.g. 'Sorry, there are no test cases for requirement X.') so the user is informed."

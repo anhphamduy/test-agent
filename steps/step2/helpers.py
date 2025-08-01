@@ -108,7 +108,7 @@ def infer_requirement_schema(user_msg: str) -> Tuple[Dict, str]:
                 "request is purely content editing and no schema adjustment is needed, respond normally without "
                 "calling any function. When you do call the function, the `schema` argument must be a JSON string "
                 "representing the complete item-level schema (not a patch). All properties should use type 'string' "
-                "except for the identifier which may be 'integer'. "
+                "except for the identifier which may be 'integer'. If you respond normally without calling the function, end your message with a question asking if the user would like to apply these ideas to the requirements table. "
             ),
         },
         {"role": "system", "content": f"Current schema: {json.dumps(current_schema)}"},
@@ -270,7 +270,7 @@ def handle_chat(user_msg: str):
                 "content": (
                     "You are a helpful assistant helping the user refine the software requirements list. "
                     "Whenever the user requests a change, respond ONLY by calling the update_requirements function with "
-                    "the complete new list of requirements AND a brief summary of what changes were made. If no change is needed, respond normally. "
+                    "the complete new list of requirements AND a brief summary of what changes were made. If no change is needed, respond normally **and end your reply with a question asking if the user wants to apply these ideas to the requirements table** (e.g. 'Would you like me to update the requirements accordingly?'). "
                     "Important: If the user asks to delete a requirement that does not exist in the current list, do NOT call any function. "
                     "Instead, reply normally with an apology (e.g. 'Sorry, requirement X does not exist.') so the user is informed."
                     "When you talk about a 'viewpoint', make it clear in your reply that each viewpoint corresponds to an individual requirement from the user's perspective. "
