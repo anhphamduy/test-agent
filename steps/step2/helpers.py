@@ -256,6 +256,14 @@ def handle_chat(user_msg: str):
                     "required": ["requirements", "summary"],
                 },
             },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "trigger_test_case_generation",
+                "description": "Generate test cases for all current requirements and advance to Step 3.",
+                "parameters": {"type": "object", "properties": {}, "required": []},
+            },
         }
     ]
 
@@ -269,8 +277,10 @@ def handle_chat(user_msg: str):
                 "role": "system",
                 "content": (
                     "You are a helpful assistant helping the user refine the software requirements list. "
-                    "Whenever the user requests a change, respond ONLY by calling the update_requirements function with "
-                    "the complete new list of requirements AND a brief summary of what changes were made. If no change is needed, respond normally **and end your reply with a question asking if the user wants to apply these ideas to the requirements table** (e.g. 'Would you like me to update the requirements accordingly?'). "
+                    "Whenever the user requests a change, respond by either:\n" \
+                    "1) Calling the update_requirements function with the full updated list (plus summary) when editing requirements, OR\n" \
+                    "2) Calling the trigger_test_case_generation function when the user asks to generate test cases for the current requirements.\n" \
+                    "If no change is needed, respond normally **and end your reply with a question asking if the user wants to apply these ideas to the requirements table** (e.g. 'Would you like me to update the requirements accordingly?'). "
                     "Important: If the user asks to delete a requirement that does not exist in the current list, do NOT call any function. "
                     "Instead, reply normally with an apology (e.g. 'Sorry, requirement X does not exist.') so the user is informed."
                     "When you talk about a 'viewpoint', make it clear in your reply that each viewpoint corresponds to an individual requirement from the user's perspective. "
@@ -313,20 +323,42 @@ def handle_chat(user_msg: str):
 
     if assistant_msg.tool_calls:
         for call in assistant_msg.tool_calls:
-            requirements, summary = apply_tool_call(requirements, call)
-            if summary:
-                st.session_state.chat_history.append(
-                    {
-                        "role": "assistant",
-                        "content": f"**Summary of changes:** {summary}",
-                    }
-                )
-            st.session_state.requirements = requirements
-            # Track versions of requirements
-            req_versions = st.session_state.get("requirements_versions", [])
-            req_versions.append([r.copy() for r in requirements])
-            st.session_state["requirements_versions"] = req_versions
-            st.session_state["req_version_idx"] = len(req_versions) - 1
+            if call.function.name == "trigger_test_case_generation":
+                # Generate test cases for ALL requirements using current schema
+                item_schema = st.session_state.get("test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA)
+                prompt = "Generate 3-5 test cases for each requirement following the specified schema."
+
+                with st.spinner("Generating test cases…"):
+                    st.session_state.test_cases = generate_test_cases(
+                        st.session_state.requirements,
+                        item_schema,
+                        prompt,
+                        st.session_state.get("test_case_sample"),
+                    )
+
+                    # Track versions of test cases
+                    tc_versions = st.session_state.get("test_case_versions", [])
+                    tc_versions.append([c.copy() for c in st.session_state.test_cases])
+                    st.session_state["test_case_versions"] = tc_versions
+                    st.session_state["tc_version_idx"] = len(tc_versions) - 1
+
+                # Immediately rerun so main() moves to Step-3 (test-case view)
+                st.rerun()
+            else:
+                requirements, summary = apply_tool_call(requirements, call)
+                if summary:
+                    st.session_state.chat_history.append(
+                        {
+                            "role": "assistant",
+                            "content": f"**Summary of changes:** {summary}",
+                        }
+                    )
+                st.session_state.requirements = requirements
+                # Track versions of requirements
+                req_versions = st.session_state.get("requirements_versions", [])
+                req_versions.append([r.copy() for r in requirements])
+                st.session_state["requirements_versions"] = req_versions
+                st.session_state["req_version_idx"] = len(req_versions) - 1
 
 
 # ---------------------------------------------------------------------------
