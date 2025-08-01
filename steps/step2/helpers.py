@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 
 import streamlit as st
 
-from constants import DEFAULT_TEST_CASE_ITEM_SCHEMA
+from constants import DEFAULT_TEST_CASE_ITEM_SCHEMA, DEFAULT_REQUIREMENT_ITEM_SCHEMA
 from settings import get_openai_client
 
 # ---------------------------------------------------------------------------
@@ -21,6 +21,148 @@ def next_requirement_id(requirements: List[Dict]) -> int:
 # ---------------------------------------------------------------------------
 # Chat-based requirement editing helpers
 # ---------------------------------------------------------------------------
+
+# -----------------------------------------
+# Generic sample builder for requirement objects
+# -----------------------------------------
+
+
+def _build_generic_requirement_sample(schema: Dict) -> Dict:
+    """Return a generic sample requirement following the provided item-level schema."""
+
+    props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    sample: Dict = {}
+    for name in props.keys():
+        if name == "id":
+            sample[name] = 1
+        elif name == "name":
+            sample[name] = "Sample Requirement"
+        else:
+            sample[name] = "Sample Value"
+    return sample
+
+
+# -----------------------------------------
+# Schema inference helper (similar to Step-3)
+# -----------------------------------------
+
+
+def infer_requirement_schema(user_msg: str) -> Tuple[Dict, str]:
+    """Detect if the requirement item-level schema needs changes and return it.
+
+    Parameters
+    ----------
+    user_msg: str
+        Aggregated conversation text (including historical messages) ending with the latest user request.
+
+    Returns
+    -------
+    schema_obj: Dict
+        Parsed JSON object of the new schema, or an empty dict if unchanged.
+    assistant_reply: str
+        Normal chat reply from the assistant when no schema change is required.
+    """
+
+    client = get_openai_client()
+
+    current_schema = st.session_state.get(
+        "requirement_schema", DEFAULT_REQUIREMENT_ITEM_SCHEMA
+    )
+    current_requirements = st.session_state.get("requirements", [])
+
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "detect_requirement_schema",
+                "description": "Analyse the user's request and decide whether the requirement schema must change.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reason": {
+                            "type": "string",
+                            "description": "Short rationale for the decision.",
+                        },
+                        "schema": {
+                            "type": "string",
+                            "description": "JSON string of the *full* new requirement item-level schema. Use '{}' if unchanged.",
+                        },
+                        "sample_requirement": {
+                            "type": "string",
+                            "description": "JSON string of ONE sample requirement object complying with the schema. Use '{}' if unchanged.",
+                        },
+                    },
+                    "required": ["reason", "schema", "sample_requirement"],
+                },
+            },
+        }
+    ]
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a senior business analyst and JSON-Schema expert. Decide whether the item-level "
+                "schema for software requirements must change based on the user's request. Respond ONLY by "
+                "calling the detect_requirement_schema function **when** a schema change is required. If the "
+                "request is purely content editing and no schema adjustment is needed, respond normally without "
+                "calling any function. When you do call the function, the `schema` argument must be a JSON string "
+                "representing the complete item-level schema (not a patch). All properties should use type 'string' "
+                "except for the identifier which may be 'integer'. "
+            ),
+        },
+        {"role": "system", "content": f"Current schema: {json.dumps(current_schema)}"},
+        {"role": "system", "content": f"Current requirements: {json.dumps(current_requirements)}"},
+        {"role": "user", "content": user_msg},
+    ]
+
+    try:
+        resp = client.chat.completions.create(
+            model=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-35-turbo"),
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+            temperature=0.0,
+        )
+        print(resp)
+
+        assistant_msg = resp.choices[0].message
+
+        # If no tool call, return content as normal assistant reply
+        if not assistant_msg.tool_calls:
+            return {}, assistant_msg.content or ""
+
+        first_call = assistant_msg.tool_calls[0]
+        try:
+            args = json.loads(first_call.function.arguments)
+            schema_str = args.get("schema", "{}")
+            sample_str = args.get("sample_requirement", "{}")
+
+            try:
+                schema_obj = json.loads(schema_str) if isinstance(schema_str, str) else {}
+            except json.JSONDecodeError:
+                schema_obj = {}
+
+            try:
+                sample_obj = json.loads(sample_str) if isinstance(sample_str, str) else {}
+            except json.JSONDecodeError:
+                sample_obj = {}
+
+            # Store sample for UI consistency
+            if sample_obj:
+                st.session_state["requirement_sample"] = sample_obj
+            else:
+                if schema_obj:
+                    st.session_state["requirement_sample"] = _build_generic_requirement_sample(
+                        schema_obj
+                    )
+
+            return schema_obj if isinstance(schema_obj, dict) else {}, ""
+        except Exception:
+            return {}, ""
+    except Exception:
+        return {}, ""
+
 
 def apply_tool_call(requirements: List[Dict], call) -> Tuple[List[Dict], str]:
     """Apply an `update_requirements` tool call coming from the LLM."""
@@ -42,6 +184,28 @@ def apply_tool_call(requirements: List[Dict], call) -> Tuple[List[Dict], str]:
 def handle_chat(user_msg: str):
     """Process a user chat message, possibly modifying the requirements via OpenAI function calls."""
 
+    # -----------------------------------------------------------
+    # 1) Schema inference (allows adding/removing fields like Step-3)
+    # -----------------------------------------------------------
+
+    # Build aggregated conversation text (including previous messages)
+    conversation_lines = [
+        f"{m.get('role', '').capitalize()}: {m.get('content', '')}" for m in st.session_state.chat_history
+    ]
+    conversation_lines.append(f"User: {user_msg}")
+    aggregated_user_msg = "\n".join(conversation_lines)
+
+    inferred_schema, assistant_reply = infer_requirement_schema(aggregated_user_msg)
+    if inferred_schema:
+        st.session_state["requirement_schema"] = inferred_schema
+
+    print(inferred_schema)
+
+    # Show normal assistant reply if no function was invoked
+    if assistant_reply.strip():
+        st.session_state.chat_history.append({"role": "assistant", "content": assistant_reply})
+
+    # Refresh local variables after possible schema update
     client = get_openai_client()
     requirements = st.session_state.requirements
     document_text = st.session_state.get("document_text", "")
@@ -106,8 +270,16 @@ def handle_chat(user_msg: str):
                 "content": (
                     "You are a helpful assistant helping the user refine the software requirements list. "
                     "Whenever the user requests a change, respond ONLY by calling the update_requirements function with "
-                    "the complete new list of requirements AND a brief summary of what changes were made. If no change is needed, respond normally."
+                    "the complete new list of requirements AND a brief summary of what changes were made. If no change is needed, respond normally. "
+                    "Important: If the user asks to delete a requirement that does not exist in the current list, do NOT call any function. "
+                    "Instead, reply normally with an apology (e.g. 'Sorry, requirement X does not exist.') so the user is informed."
+                    "When you talk about a 'viewpoint', make it clear in your reply that each viewpoint corresponds to an individual requirement from the user's perspective. "
+                    "If the user explicitly requests schema changes (e.g. adding a new field), ensure all requirements include that field according to the *current* schema stored in memory. "
                 ),
+            },
+            {
+                "role": "system",
+                "content": f"Current requirement schema: {json.dumps(st.session_state.get('requirement_schema', DEFAULT_REQUIREMENT_ITEM_SCHEMA))}",
             },
             {
                 "role": "system",
@@ -132,6 +304,7 @@ def handle_chat(user_msg: str):
         tools=tools,
         tool_choice="auto",
     )
+    print(response)
 
     assistant_msg = response.choices[0].message
     assistant_content = assistant_msg.content or ""

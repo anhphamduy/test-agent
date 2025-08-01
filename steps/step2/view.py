@@ -58,7 +58,17 @@ def render():
                     st.rerun()
 
         # Sort by requirement ID for easier readability
+
+        # Build DataFrame from current requirements
         df = pd.DataFrame(st.session_state.get("requirements", []))
+
+        # Ensure the dataframe includes all fields defined in the current requirement schema
+        schema_props = (
+            st.session_state.get("requirement_schema", {}).get("properties", {})
+        )
+        for col in schema_props.keys():
+            if col not in df.columns:
+                df[col] = ""
 
         # Ensure the ID and viewpoint columns are displayed first if they exist
         preferred_order = [

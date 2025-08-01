@@ -38,4 +38,34 @@ DEFAULT_TEST_CASE_ITEM_SCHEMA: Dict = {
         "test_steps",
         "expected_result",
     ],
+}
+
+DEFAULT_REQUIREMENT_ITEM_SCHEMA: Dict = {
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "integer",
+            "description": "Unique identifier of the requirement, starting at 1.",
+        },
+        "name": {
+            "type": "string",
+            "description": "Short requirement description.",
+        },
+        "first_level_viewpoint": {
+            "type": "string",
+            "description": "Top-level viewpoint (e.g. user journey step or module).",
+        },
+        "second_level_viewpoint": {
+            "type": "string",
+            "description": "Second-level grouping or perspective.",
+        },
+        "third_level_viewpoint": {
+            "type": "string",
+            "description": "Fine-grained sub-category or test objective.",
+        },
+    },
+    "required": [
+        "id",
+        "name",
+    ],
 } 

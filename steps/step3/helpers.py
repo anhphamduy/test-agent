@@ -76,7 +76,8 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
                 "the detect_schema_and_affected function **ONLY when** the user is requesting changes that affect the test-case schema or require regenerating test cases. "
                 "If the user's message is purely informational (Q&A) and no adjustments are needed, respond normally **without** calling the function. "
                 "When you do call the function, it **must** include an `instruction` field that contains a concise directive for how to generate the test cases (e.g. 'Add edge cases'). "
-                "The `schema` argument must be a JSON string representing the full item-level schema, or '{}' if unchanged. Additionally, every property in the schema must have type 'string'."
+                "The `schema` argument must be a JSON string representing the full item-level schema, or '{}' if unchanged. Additionally, every property in the schema must have type 'string'. "
+                "Important: If the user asks to delete test cases (or a requirement) that does not exist, do NOT call any function. Instead, reply normally with an apology (e.g. 'Sorry, there are no test cases for requirement X.') so the user is informed."
             ),
         },
         {"role": "system", "content": f"Current schema: {json.dumps(current_schema)}"},
