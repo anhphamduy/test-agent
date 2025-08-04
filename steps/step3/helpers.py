@@ -24,6 +24,10 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
     current_test_cases = st.session_state.get("test_cases", [])
     requirements = st.session_state.get("requirements", [])
 
+    # Ensure every property is required in the schema passed to the model
+    full_item_schema = json.loads(json.dumps(current_schema))  # deep copy
+    full_item_schema["required"] = list(full_item_schema.get("properties", {}).keys())
+
     tools = [
         {
             "type": "function",

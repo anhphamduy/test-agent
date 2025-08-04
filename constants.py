@@ -67,5 +67,8 @@ DEFAULT_REQUIREMENT_ITEM_SCHEMA: Dict = {
     "required": [
         "id",
         "name",
+        "first_level_viewpoint",
+        "second_level_viewpoint",
+        "third_level_viewpoint",
     ],
 } 

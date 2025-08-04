@@ -210,6 +210,11 @@ def handle_chat(user_msg: str):
     requirements = st.session_state.requirements
     document_text = st.session_state.get("document_text", "")
 
+    # Build item-level schema based on current requirement schema and make every property required
+    item_schema: Dict = json.loads(json.dumps(st.session_state.get("requirement_schema", DEFAULT_REQUIREMENT_ITEM_SCHEMA)))  # deep copy
+    all_props = list(item_schema.get("properties", {}).keys())
+    item_schema["required"] = all_props
+
     tools = [
         {
             "type": "function",
@@ -219,35 +224,7 @@ def handle_chat(user_msg: str):
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "requirements": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "id": {
-                                        "type": "integer",
-                                        "description": "Requirement identifier starting at 1.",
-                                    },
-                                    "name": {
-                                        "type": "string",
-                                        "description": "Short requirement description.",
-                                    },
-                                    "first_level_viewpoint": {
-                                        "type": "string",
-                                        "description": "Top-level viewpoint (e.g. user journey step or module).",
-                                    },
-                                    "second_level_viewpoint": {
-                                        "type": "string",
-                                        "description": "Second-level viewpoint grouping.",
-                                    },
-                                    "third_level_viewpoint": {
-                                        "type": "string",
-                                        "description": "Specific category/sub-category or test objective.",
-                                    },
-                                },
-                                "required": ["id", "name"],
-                            },
-                        },
+                        "requirements": {"type": "array", "items": item_schema},
                         "summary": {
                             "type": "string",
                             "description": "Brief summary of changes made to the requirements based on user request.",
@@ -395,6 +372,10 @@ def _generate_test_cases_for_requirement(
 
     client = get_openai_client()
 
+    # Ensure every property is required
+    full_item_schema = json.loads(json.dumps(item_schema))
+    full_item_schema["required"] = list(full_item_schema.get("properties", {}).keys())
+
     tools = [
         {
             "type": "function",
@@ -406,10 +387,7 @@ def _generate_test_cases_for_requirement(
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "test_cases": {
-                            "type": "array",
-                            "items": item_schema,
-                        }
+                        "test_cases": {"type": "array", "items": full_item_schema}
                     },
                     "required": ["test_cases"],
                 },
