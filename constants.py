@@ -38,7 +38,7 @@ DEFAULT_TEST_CASE_ITEM_SCHEMA: Dict = {
         "test_steps",
         "expected_result",
     ],
-}
+} 
 
 DEFAULT_REQUIREMENT_ITEM_SCHEMA: Dict = {
     "type": "object",

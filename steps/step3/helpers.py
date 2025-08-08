@@ -101,7 +101,6 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
             tool_choice="auto",
             temperature=0.0,
         )
-        print(resp)
         assistant_msg = resp.choices[0].message
         if not assistant_msg.tool_calls:
             # Pure chat response; return its content so caller can display it
@@ -112,7 +111,6 @@ def infer_test_case_schema(user_msg: str) -> Tuple[Dict, List[int], str, str]:
             args = json.loads(first_call.function.arguments)
             schema_str = args.get("schema", "{}")
             sample_str = args.get("sample_test_case", "{}")
-            print(args)
             try:
                 schema_obj = (
                     json.loads(schema_str) if isinstance(schema_str, str) else {}

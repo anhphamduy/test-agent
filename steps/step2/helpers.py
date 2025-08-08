@@ -124,7 +124,6 @@ def infer_requirement_schema(user_msg: str) -> Tuple[Dict, str]:
             tool_choice="auto",
             temperature=0.0,
         )
-        print(resp)
 
         assistant_msg = resp.choices[0].message
 
@@ -199,7 +198,6 @@ def handle_chat(user_msg: str):
     if inferred_schema:
         st.session_state["requirement_schema"] = inferred_schema
 
-    print(inferred_schema)
 
     # Show normal assistant reply if no function was invoked
     if assistant_reply.strip():
@@ -238,8 +236,22 @@ def handle_chat(user_msg: str):
             "type": "function",
             "function": {
                 "name": "trigger_test_case_generation",
-                "description": "Generate test cases for all current requirements and advance to Step 3.",
-                "parameters": {"type": "object", "properties": {}, "required": []},
+                "description": "Generate test cases for selected requirements and advance to Step 3.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "requirement_ids": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "description": "IDs of requirements to generate test cases for. Use an empty list or omit to include all.",
+                        },
+                        "new_schema": {
+                            "type": "string",
+                            "description": "JSON string of the full item-level schema to use for generation. Use '{}' to keep current schema.",
+                        },
+                    },
+                    "required": ["requirement_ids", "new_schema"],
+                },
             },
         }
     ]
@@ -256,7 +268,7 @@ def handle_chat(user_msg: str):
                     "You are a helpful assistant helping the user refine the software requirements list. "
                     "Whenever the user requests a change, respond by either:\n" \
                     "1) Calling the update_requirements function with the full updated list (plus summary) when editing requirements, OR\n" \
-                    "2) Calling the trigger_test_case_generation function when the user asks to generate test cases for the current requirements.\n" \
+                    "2) Calling the trigger_test_case_generation function when the user asks to generate test cases for some or all requirements. The function **must include** a `requirement_ids` array and a `new_schema` string (use '{}' if unchanged).\n" \
                     "If no change is needed, respond normally **and end your reply with a question asking if the user wants to apply these ideas to the requirements table** (e.g. 'Would you like me to update the requirements accordingly?'). "
                     "Important: If the user asks to delete a requirement that does not exist in the current list, do NOT call any function. "
                     "Instead, reply normally with an apology (e.g. 'Sorry, requirement X does not exist.') so the user is informed."
@@ -301,13 +313,45 @@ def handle_chat(user_msg: str):
     if assistant_msg.tool_calls:
         for call in assistant_msg.tool_calls:
             if call.function.name == "trigger_test_case_generation":
-                # Generate test cases for ALL requirements using current schema
-                item_schema = st.session_state.get("test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA)
+                # Parse arguments
+                try:
+                    args = json.loads(call.function.arguments)
+                except Exception:
+                    args = {}
+
+                req_ids = args.get("requirement_ids", [])
+                new_schema_str = args.get("new_schema", "{}")
+
+                # Determine which requirements to generate for
+                if req_ids:
+                    selected_reqs = [r for r in st.session_state.requirements if r.get("id") in req_ids]
+                else:
+                    selected_reqs = st.session_state.requirements
+
+                # Determine base schema: either user-provided new_schema or current schema
+                try:
+                    incoming_schema = json.loads(new_schema_str) if isinstance(new_schema_str, str) else {}
+                except json.JSONDecodeError:
+                    incoming_schema = {}
+
+                if incoming_schema:
+                    item_schema = incoming_schema
+                else:
+                    item_schema = json.loads(
+                        json.dumps(st.session_state.get("test_case_schema", DEFAULT_TEST_CASE_ITEM_SCHEMA))
+                    )
+
+                # Ensure all properties required
+                item_schema["required"] = list(item_schema.get("properties", {}).keys())
+
+                # Persist possibly updated schema
+                st.session_state["test_case_schema"] = item_schema
+
                 prompt = "Generate 3-5 test cases for each requirement following the specified schema."
 
                 with st.spinner("Generating test cases…"):
                     st.session_state.test_cases = generate_test_cases(
-                        st.session_state.requirements,
+                        selected_reqs,
                         item_schema,
                         prompt,
                         st.session_state.get("test_case_sample"),
@@ -469,6 +513,8 @@ def _generate_test_cases_for_requirement(
 
 
 # Accept optional user message to propagate down to each test-case generation call
+
+
 def generate_test_cases(
     requirements: List[Dict],
     item_schema: Dict,
@@ -481,7 +527,6 @@ def generate_test_cases(
         return []
 
     results: List[Dict] = []
-
     with ThreadPoolExecutor(max_workers=min(20, len(requirements))) as executor:
         future_to_req = {
             executor.submit(
@@ -501,4 +546,4 @@ def generate_test_cases(
                 # Ignore failures for individual requirements
                 continue
 
-    return results 
+    return results
